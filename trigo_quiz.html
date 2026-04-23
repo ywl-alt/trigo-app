@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8" />
+<title>Trigo ±θ Practice - UI Enhanced</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<style>
+/* ======================================================
+   THEME VARIABLES
+======================================================*/
+:root {
+    --bg:#f4f4f4;
+    --card-bg:white;
+    --text:#222;
+
+    --button-bg:#e7e7e7;
+    --button-hover:#ddd;
+    --button-active:#ccc;
+
+    --correct:#c8f7c5;
+    --wrong:#f7c5c5;
+
+    --glow:rgba(0,0,0,0.15);
+}
+
+body.dark {
+    --bg:#1e1e1e;
+    --card-bg:#2a2a2a;
+    --text:#eee;
+
+    --button-bg:#555;
+    --button-hover:#666;
+    --button-active:#444;
+
+    --glow:rgba(255,255,255,0.2);
+
+    --correct:#295f2d;
+    --wrong:#6b2323;
+}
+
+/* ======================================================
+   GENERAL LAYOUT
+======================================================*/
+body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--text);
+}
+
+.card {
+    background: var(--card-bg);
+    padding: 25px;
+    border-radius: 16px;
+    max-width: 520px;
+    margin: auto;
+    box-shadow:0 4px 15px rgba(0,0,0,0.15);
+    transition: 0.3s;
+}
+
+/* ======================================================
+   BUTTON STYLE (NEW UI)
+======================================================*/
+button {
+    width: 100%;
+    padding: 14px;
+    margin: 10px 0;
+    font-size: 16px;
+    border-radius: 50px;       /* ★ 圓角膠囊 */
+    border: none;
+    cursor: pointer;
+
+    background: var(--button-bg);
+    color: var(--text);
+
+    transition: transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+/* hover 效果：發光 + 滑起 */
+button:hover {
+    background: var(--button-hover);
+    box-shadow: 0 4px 10px var(--glow);
+    transform: translateY(-2px);
+}
+
+/* 按下動畫：縮細少少 */
+button:active {
+    transform: scale(0.95);
+    background: var(--button-active);
+}
+
+/* 正確/錯誤選項 */
+.correct { background: var(--correct) !important; }
+.wrong   { background: var(--wrong)   !important; }
+
+/* ======================================================
+   WRONG BOOK STYLE
+======================================================*/
+#wrongBookContainer {
+    margin-top:20px;
+    background:var(--card-bg);
+    padding:15px;
+    border-radius:12px;
+    box-shadow:0 2px 10px rgba(0,0,0,0.2);
+    display:none;
+}
+
+.wrong-item {
+    padding:10px;
+    border-bottom:1px solid #666;
+    font-size:16px;
+}
+
+/* 下拉清單 */
+select {
+    width:100%;
+    padding:10px;
+    margin-bottom:10px;
+    border-radius:12px;
+    border:1px solid #999;
+    background:var(--button-bg);
+    color:var(--text);
+}
+</style>
+</head>
+
+<body>
+
+<div class="card">
+    <h2 style="text-align:center;">Trigo ±θ 練習（UI 強化版）</h2>
+
+    <button id="darkModeBtn">🌙 深色模式</button>
+
+    <label><b>難度模式：</b></label>
+    <select id="levelSelect">
+        <option value="1">Beginner</option>
+        <option value="2">Intermediate</option>
+        <option value="3">Master</option>
+    </select>
+
+    <button id="redoWrongBtn">🔁 錯題重做模式</button>
+
+    <div id="score">得分：0 / 0</div>
+    <div id="question" style="font-size:22px; text-align:center; margin:20px 0;"></div>
+
+    <div id="choices"></div>
+    <div id="feedback" style="text-align:center; min-height:35px;"></div>
+    <button id="nextBtn" style="background:#4CAF50; color:white; display:none;">下一題</button>
+
+    <button id="toggleWrongBookBtn">📘 查看 / 隱藏 錯題本</button>
+</div>
+
+<div id="wrongBookContainer">
+    <h3>📘 錯題本</h3>
+    <div id="wrongList"></div>
+    <button id="clearWrongBtn" style="background:#ff6666; color:white;">清空錯題本</button>
+</div>
+
+<!-- 音效 -->
+<audio id="sound-correct" src="data:audio/mp3;base64,//uQZ..."></audio>
+<audio id="sound-wrong"   src="data:audio/mp3;base64,//uQZ..."></audio>
+
+<script>
+/* ======================================================
+   JS (與之前版本完全相同 + 按鈕動畫自動生效)
+======================================================*/
+
+function playCorrect(){ document.getElementById("sound-correct").play(); }
+function playWrong(){ document.getElementById("sound-wrong").play(); }
+
+function rand(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+let score=0,total=0;
+let wrongBook=[];
+let doingWrong=false;
+let wrongIndex=0;
+
+const encourage=["唔緊要，繼續加油！💪","你一定做到！🔥","再黎一次一定中！📈",
+                 "就差少少！堅持！⭐","你越做越好，唔怕！👌","努力係會見到成果！💯"];
+
+const trigFormula={
+    sin:{"90+":"cosθ","90-":"cosθ","180+":"-sinθ","180-":"sinθ",
+         "270+":"-cosθ","270-":"cosθ","360+":"sinθ","360-":"-sinθ"},
+    cos:{"90+":"-sinθ","90-":"sinθ","180+":"-cosθ","180-":"-cosθ",
+         "270+":"sinθ","270-":"-sinθ","360+":"cosθ","360-":"cosθ"},
+    tan:{"90+":"-1/tanθ","90-":"1/tanθ","180+":"tanθ","180-":"-tanθ",
+         "270+":"-1/tanθ","270-":"1/tanθ","360+":"tanθ","360-":"-tanθ"}
+};
+
+function squareVersion(expr){
+    if(expr.includes("sinθ")) return "sin²θ";
+    if(expr.includes("cosθ")) return "cos²θ";
+    if(expr.includes("tanθ")){
+        if(expr.includes("1/tanθ")) return "1/tan²θ";
+        return "tan²θ";
+    }
+}
+
+function randomReplace(expr,isSquare){
+    if(!isSquare){
+        if(expr==="1/tan²θ") return "1/tanθ";
+        if(expr==="cos²θ/sin²θ") return "cosθ/sinθ";
+    }
+    if(expr==="1/tanθ") return rand(["1/tanθ","cosθ/sinθ"]);
+    if(expr==="-1/tanθ") return "-" + rand(["1/tanθ","cosθ/sinθ"]);
+    if(expr==="1/tan²θ") return rand(["1/tan²θ","cos²θ/sin²θ"]);
+    return expr;
+}
+
+function difficultySettings(level){
+    if(level==1) return { funcs:["sin","cos"], bases:[90,180], allowSquare:false };
+    if(level==2) return { funcs:["sin","cos","tan"], bases:[90,180,270,360], allowSquare:true };
+    return           { funcs:["sin","cos","tan"], bases:[90,180,270,360], allowSquare:true };
+}
+
+function generateQuestion(){
+    document.getElementById("nextBtn").style.display="none";
+    document.getElementById("choices").innerHTML="";
+    document.getElementById("feedback").innerHTML="";
+
+    const level=parseInt(document.getElementById("levelSelect").value);
+    const cfg=difficultySettings(level);
+
+    let func,base,sign,key,correct,questionText,isSquare;
+
+    if(!doingWrong){
+        func=rand(cfg.funcs);
+        base=rand(cfg.bases);
+        sign=rand(["+","-"]);
+        key=base+sign;
+
+        let ans=trigFormula[func][key];
+        isSquare = cfg.allowSquare ? Math.random()<0.5 : false;
+        correct=isSquare?squareVersion(ans):ans;
+        correct=randomReplace(correct,isSquare);
+
+        const qFunc=isSquare?func+"²":func;
+        questionText=`${qFunc}(${base}° ${sign} θ)`;
+
+    }else{
+        const item=wrongBook[wrongIndex];
+        questionText=item.question;
+        correct=item.correctAns;
+        isSquare=questionText.includes("²");
+    }
+
+    document.getElementById("question").innerText=questionText+" = ?";
+
+    // ★ 新邏輯：只有 tan 題先可以出 tan 類答案
+    const questionIsTan = questionText.startsWith("tan");
+
+    let pool;
+    if(isSquare){
+        pool = questionIsTan
+            ? ["tan²θ","1/tan²θ","cos²θ/sin²θ"]
+            : ["sin²θ","cos²θ"];
+    }else{
+        pool = questionIsTan
+            ? ["tanθ","-tanθ","1/tanθ","-1/tanθ","cosθ/sinθ"]
+            : ["sinθ","-sinθ","cosθ","-cosθ"];
+    }
+
+    let choices=[correct];
+    while(choices.length<4){
+        let f=rand(pool);
+        if(!choices.includes(f)) choices.push(f);
+    }
+    choices.sort(()=>Math.random()-0.5);
+
+    const cDiv=document.getElementById("choices");
+    choices.forEach(v=>{
+        const btn=document.createElement("button");
+        btn.innerText=v;
+
+        btn.onclick=()=>{
+            total++;
+
+            if(v===correct){
+                score++; playCorrect();
+                btn.classList.add("correct");
+                document.getElementById("feedback").innerHTML="答啱喇！🎉";
+
+                if(doingWrong){
+                    wrongBook.splice(wrongIndex,1);
+                    if(wrongIndex>=wrongBook.length) wrongIndex=0;
+                }
+
+            }else{
+                playWrong();
+                btn.classList.add("wrong");
+
+                if(!doingWrong){
+                    wrongBook.push({question:questionText,yourAns:v,correctAns:correct});
+                }
+
+                document.getElementById("feedback").innerHTML=
+                    `正確答案係：<b>${correct}</b><br>${rand(encourage)}`;
+            }
+
+            document.getElementById("score").innerText=
+                "得分：" + score + " / " + total;
+
+            Array.from(cDiv.children).forEach(b=>b.disabled=true);
+            document.getElementById("nextBtn").style.display="block";
+        };
+
+        cDiv.appendChild(btn);
+    });
+
+    document.getElementById("nextBtn").onclick=generateQuestion;
+}
+
+// 深色模式
+document.getElementById("darkModeBtn").onclick=()=>{
+    document.body.classList.toggle("dark");
+    document.getElementById("darkModeBtn").innerText =
+        document.body.classList.contains("dark") ? "☀️ 淺色模式" : "🌙 深色模式";
+};
+
+document.getElementById("levelSelect").onchange = () => {
+    doingWrong=false;
+    generateQuestion();
+};
+
+// 錯題本
+document.getElementById("toggleWrongBookBtn").onclick=()=>{
+    const box=document.getElementById("wrongBookContainer");
+    box.style.display=box.style.display==="none"?"block":"none";
+    refreshWrongBook();
+};
+
+document.getElementById("clearWrongBtn").onclick=()=>{
+    wrongBook=[]; refreshWrongBook();
+};
+
+function refreshWrongBook(){
+    const box=document.getElementById("wrongList");
+    box.innerHTML="";
+    if(wrongBook.length===0){
+        box.innerHTML="<i>暫時沒有錯題。</i>";
+        return;
+    }
+    wrongBook.forEach(i=>{
+        const d=document.createElement("div");
+        d.className="wrong-item";
+        d.innerHTML=
+            `<b>題目：</b>${i.question}<br>
+             <b>你答：</b>${i.yourAns}<br>
+             <b>正確：</b>${i.correctAns}`;
+        box.appendChild(d);
+    });
+}
+
+// 錯題重做
+document.getElementById("redoWrongBtn").onclick=()=>{
+    if(wrongBook.length===0){ alert("錯題本係空的！"); return; }
+    doingWrong=true; wrongIndex=0;
+    generateQuestion();
+};
+
+generateQuestion();
+</script>
+</body>
+</html>
